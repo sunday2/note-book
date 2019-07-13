@@ -2,6 +2,18 @@
 * 临界区(critical section)
 * 内存可见性(memery visibility)
 * 线程封闭(thread confinement)
+* java的一些同步注解
+
+```
+类annotation
+@ThreadSafe:表示这个类是线程安全的，具体是否线程安全，就看实现者怎么实现了
+
+域annotation:
+@GuardedBy:表明这个状态变量，被哪个锁保护者。
+```
+
+
+
 * 定理
 
 ```
@@ -432,5 +444,111 @@ public class PersonSet{
 封闭机制更易于构造线程安全的类，因为当封闭类的状态时，在分析类的线程安全性时就无须检查整个程序。
 ```
 
+* 监视器模式
 
+```
+遵循java监视器模式的对象会把对象的所有可变状态都封装起来，并由对象自己的内置锁来保护。(线程封闭+内置锁,一种编写代码的约定，好处在于简单性)
+在上面的例子中就是使用了监视器模式，在jdk中许多类都使用了Java监视器模式，例如Vector和HashTable。
+```
+
+```java
+public class PrivateLock{
+    private final Object myLock = new Object();
+    @GuardedBy("myLock") Widget  widget;
+    void someMethod(){
+        synchronized(myLock){
+            
+        }
+    }
+}
+```
+
+```
+上面的例子中，使用私有的对象锁的好处:
+1.私有的锁对象可以将锁封装起来，使客户代码无法得到锁（但客户代码可以通过公有方法来获访问锁，以便(正确或不正确)地参与到它的同步策略中）
+2.使用公有的内置锁的话，如果客户代码错误地获得了另一个对象锁，那么可能会产生活跃性问题。
+3.使用公有访问的锁在程序中是否被正确地使用，需要检查整个程序，而不是单个的类。
+```
+
+* 监视器模式例子
+```java
+
+@Treadsafe
+public class MonitorVehicleTracker{
+    @GuardedBy(this)
+    private final Map<String,MutablePoint> locations;
+    
+    public MonitorVehicleTracker(Map<String,MutablePoint> locations){
+        this.locations = deepCopy(locations);
+    }
+    
+    public synchronized Map<String，MutablePoint> getLocations(){
+        return deepCopy(locations);
+    }
+    
+    public synchronized MutablePoint getLocation(String id){
+        MutablePoint loc = locations.get(id);
+        retrun loc == null?null:new MutablePoint(loc);
+    }
+    
+    public synchronized void setLocation(String id
+                                        ,int x,int y){
+        MutablePoint loc = locations.get(id);
+        if(loc == null){
+            throw new IllegalArgumentException("No such ID:"+id);
+        }
+        loc.x = x;
+        loc.y = y;
+    }
+    
+    public static Map<String,MutablePoint> deepCopy(Map<String,MutablePoint> m){
+        Map<String,MutablePoint> result = new HashMap<String,MutablePoint>();
+        for(String id : m.keySet){
+            result.put(id,new MutablePoint(m.get(id)));
+        }
+        return Collections.unmodifiableMap(result);
+    }
+}
+```
+
+```
+1.get map的时候通过拷贝Map返回了map的快照，之前一直不知道怎么理解快照这个概念，这里就知道快照的实现是通过复制目标对象生成一个新的对象来达到快照的目的的。
+get 元素的时候也返回了元素的一个拷贝的新的对象
+2.这种返回快照的方式，在容器或者元素比较大，就是拷贝耗时比较长的话会影响程序性能
+3.返回快照只有一个地方就是当被拷贝的元素变化了，无法作到实时更新，所以需要根据实际情况决定，优点就是保持了内部一致性的需求。
+4.这里还使用了Collections.unmodifiedableMap来修饰map，unmodifiedable指的是map不允许put和remove操作。
+```
+
+* 线程安全性的委托的例子
+
+```
+将多个非线程安全的类组合为一个类时，java监视器模式是非常有用的。当类中的各个组件已经是线程安全的，那么是否还需要加多一个线程安全层，这个得"视情况而定"。如果可以直接使用线程安全的类，那么我们称为"线程安全性的委托"，将线程安全性委托给了线程安全类。
+```
+
+```java
+@Threadsafe
+public class DelegatingVehicleTracker{
+    private final CoccurentMap<String,Point> locations;
+    private final Map<String,Point> unmodifiedableMap;
+    
+    public DelegatingVehicleTracker(Map<String,Point> points){
+        this.locations = new CoccurentHashMap<String,Point>(points);
+        unmodifialbeMap = Collections.unmodifableMap(locations);
+    }
+    
+    public Map<String,Point> getLocations(){
+        return unmodifiableMap;
+    }
+    
+    public Point getLocation(String id){
+        return locations.get(id);
+    }
+    
+    public void setLocation(String id,int x,int y){
+        if(locations.replace(id,new Point(x,y)) == null){
+            throw new IllegalArgumentException("invalid vehicle name:"+id);
+        }
+    }
+}
+```
 
