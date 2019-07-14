@@ -526,6 +526,7 @@ get 元素的时候也返回了元素的一个拷贝的新的对象
 ```
 
 ```java
+//单个状态的例子
 @Threadsafe
 public class DelegatingVehicleTracker{
     private final CoccurentMap<String,Point> locations;
@@ -551,4 +552,43 @@ public class DelegatingVehicleTracker{
     }
 }
 ```
+
+```
+上面的例子中，DelegatingVehicleTracker对象的状态为locations变量，该变量是CoccurentMap，它是线程安全的类。所以相当于将DelegatingVehicleTracker委托给了CoccurentMap,并且locations变量是声明为了final。
+```
+
+```java
+//多个状态下线程安全的委托
+@Threadsafe
+public class VisualComponent{
+    private final List<KeyListener> keyListeners = new CopyOnWriteArrayList<KeyListener>();
+    private final List<MouseListener> mouseListeners = new CopyOnWriteArrayList<MouseListner>();
+    
+    public void addKeyListener(KeyListener listener){
+        keyListeners.add(listener);
+    }
+    
+    public void addMouseListener(MouseListener listener){
+        mouseListeners.add(listener);
+    }
+    
+    public void removeKeyListener(KeyListener listener){
+        keyListener.remove(listener);
+    }
+    
+    public void removeMouseListener(MouseListener listener){
+        mouseListener.remove(listener);
+    }
+    
+}
+```
+
+```
+    上面的例子中VisualComponent是由两个状态变量的，分别是keyListeners，mouseListeners.由于这两个状态变量彼此是独立的，互不干扰的，所以可以直接委托给它们的线程安全类，而我们在实际中更多遇到的是多个状态变量是有关联的(或者说存在不变性条件)，这时只能通过加锁机制了，委托不了。
+    而且我们可以看到ArrayList对应的线程安全类是coccurent包下的CopyOnWriteArrayList,就好像HashMap对应的线程安全类是CoccurentHashMap.
+```
+
+
+
+
 
