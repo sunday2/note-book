@@ -588,6 +588,59 @@ public class VisualComponent{
     而且我们可以看到ArrayList对应的线程安全类是coccurent包下的CopyOnWriteArrayList,就好像HashMap对应的线程安全类是CoccurentHashMap.
 ```
 
+* 重用基础模块类(java类库中的类,特别是cocurrent包下的线程安全类)
+
+```
+重用能降低开发工作量,开发风险(因为现有的类都已经通过测试)以及维护成本。
+```
+
+```
+虽然ArrayList经过Collections.synchronizedList(new ArrayList<E>())后会返回一个线程安全的list。
+但是该list的操作有限，比如无法做到"若没有则添加"的功能。这时候我们如何实现重用的思想呢?
+（1）要添加一个新的原子操作，最安全的方法是修改原始的类，但通常无法做到，因为大多数情况下无法访问或修改类的源代码。而且要修改原始的类，需要理解代码中的同步策略，与原有设计保持一致。
+(2)扩镇(extends)原始类,然后添加新的方法。不推荐，因为这个比直接在原始类添加代码更加脆弱。
+(3)客户端加锁机制。与扩展类机制类似，二者都是将派生类的行为与基类的实现耦合在一起，所以比扩展类的机制更加脆弱，它将类C的加锁代码放到鱼C完全无关的其他类中。
+(4)组合机制。
+```
+
+```java
+//组合机制的demo
+@ThreadSafe
+public class ImprovedList<T> implements List<T> {
+    private final List<T> list;
+    
+    public ImprovedList<List<T> list>{ this.list = list;}
+    
+    public synchronized boolean putIfAbsent(T S){
+        boolean contains = list.contains(x);
+        if(contains){
+            list.add(x);
+        }
+        return !contains;
+    }
+    
+    public synchronized void clear(){
+        list.clear();
+    }
+    
+    // ...按照类似的方式委托List.其它方法。
+    
+}
+```
+
+* 将同步策略文档化
+
+```
+在维护线程安全性时,文档是最强大的(也是最未被充分利用的)工具之一。
+```
+
+```
+(1)用户可以通过查阅文档来判断某个类是否是线程安全的。
+(2)维护人员也可以通过查阅文档来理解其中的实现策略。
+```
+
+
+
 
 
 
