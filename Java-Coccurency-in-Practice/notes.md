@@ -12,8 +12,6 @@
 @GuardedBy:表明这个状态变量，被哪个锁保护者。
 ```
 
-
-
 * 定理
 
 ```
@@ -639,9 +637,146 @@ public class ImprovedList<T> implements List<T> {
 (2)维护人员也可以通过查阅文档来理解其中的实现策略。
 ```
 
+* jdk中的并发基础构建模块
+* 同步容器类
+
+```
+
+早期的Vector,HashTable;JDK1.2后添加的一些功能类似的类,这些同步的封装器类是Collections.synchronizedXxx等工厂方法创建的。这些类实现的线程安全的方式是:
+将它们的状态封装起来，并对每个公有方法都进行同步,使得每次只有一个线程能访问容器的状态。
+```
+
+```java
+1.如果需要在同步类的基础额外扩展新的原子操作，那么可以通过客户端加锁的方式，只需要确认原生的类使用的是哪一个锁，就可以通过客户端加锁的方式达到和容器的其它操作同样的同步机制。
+```
+
+```java
+//在使用客户端加锁的Vector上的复合操作
+public static Object getLast(Vector list){
+    synchronized(list){
+        int lastIndex = list.size()-1;
+        return last.get(lastIndex);
+    }
+}
+
+public static void deleteLast(Vector list){
+    synchronized(list){
+        int lastIndex = list.size()-1;
+        list.remove(lastIndex);
+    }
+}
+```
+
+```
+我们知道Vector是线程安全的，然后分析其内部的同步机制使用的是vector的自身的锁，所以在客户端代码我们可以通过该锁来设计需要的原子操作。
+```
+
+```
+2.同步类的同步机制是在类的公有方法上加上synchronized锁，锁的粒度比较大，所以实际使用中，比较影响性能。
+```
+
+```
+3.同步容器类中并没有对迭代过程进行对应的同步机制，所以迭代器在迭代过程中是非线程安全的，它们表现出的行为是"即时失败"(fail-fast),即会抛出ConcurrentModificationException异常.它并不是完善的处理机制。
+```
+
+```java
+//1.在迭代期间加锁来避免线程安全问题.长时间对容器加锁会降低程序的可伸缩性，极大的降低吞吐率和cpu的利用率;且得在所有迭代处加锁,但是得注意隐藏迭代器的问题.
+synchronized(vector){
+    for(int i=0;i<vector.size();i++){
+        doSomething(vector.get(i));
+    }
+}
+```
+
+```java
+//2.通过克隆容器来避免迭代期间线程安全问题.在副本上进行迭代，那么克隆期间还是需要加锁的.那么性能瓶颈在于克隆的耗时.
+```
+
+```java
+//3.需要对共享容器的所有迭代期间都需要加锁,但是有时候迭代器会隐藏起来.
+//字符串拼接编译器会调用String.append(Object)，并对set进行迭代添加
+System.out.println("DEBUG:added ten elements to"+set);
+
+
+(1)容器的hashCode和equals等方法也会间接地执行迭代操作,当容器作为另一个容器的元素或键值时,就会出现这种情况;
+(2)containsAll,removeAll和retainAll等方法，以及把容器作为参数的构造函数，都会对容器进行迭代。
+
+这些间接的迭代操作都可能抛出ConcurrentModificationException.
+
+
+```
+
+* tips
+
+```
+如果状态与保护它的同步代码之间相隔越远,那么开发人员就越容易忘记在访问状态时使用正确的同步.
+```
+
+
+
+* 并发容器类
+
+```
+java5.0提供了多种并发容器类来改进同步容器的性能.
+同步容器将所有容器对状态的访问都串行化,来保证线程安全性，这种方法的代价是严重降低并发性,多个线程竞争容器的锁时,吞吐量将严重降低。
+比如:
+(1)使用ConcurrentHashMap替代原线程安全的HashTable
+(2)CopyOnWriteArrayList来实现list的线程安全
+(3)在ConcurrentMap接口中增加了对一些复合常见复合操作的支持，例如"没有则添加"，替换，以及条件删除等。
+(4)Java5.0增加了两种新的容器类型:Queue和BlockingQueue.
+(5)java6引入了ConcurrentSkipListMap和ConcurrentSkipListSet分别作为同步的SortedMap和SortedSet的并发替代品。
+```
+
+* 并发容器类-ConcurrentHashMap
+
+```
+1.
+   HashTable在每个操作方法上都加了同一个锁来实现线性操作达到同步的目的,这样一些遍历操作，比如HashMap.get,有可能需要遍历很长的链表,会花费很长的时间,这个期间,其它线程都不能访问这段容器.
+   ConcurrentHashMap则使用了一种完全不同的加锁策略来提供更高的并发性和伸缩性.它并没有在每个方法上都使用同一个锁使得每次只有只能一个线程访问容器,其使用一种粒度更小的锁机制来实现最大程度的共享,这种锁叫作分段锁（Lock Striping）.
+   
+2.
+   ConcurrentHashMap提供的迭代器并不会抛出ConcurrentModificationException,因此不需要在迭代时对容器进行加锁.
+	原因就是ConcurrentHashMap使用的"弱一致性"策略(Wealy Consistent),而并非HashMap的"及时失败".相反HashMap是强一致性的.弱一致性的好处就是可以容忍并发的修改,但是不保证在迭代器构造后将修改操作返回给容器，就是如果你已经获得迭代器，后面如果有容器的修改操作,比如新增元素,已获得迭代器无法反应出来(相当于迭代器是个容器的快照或者说副本).比如size或者isEmpty这些方法的语义被弱化了以反映容器的并发特性,所谓弱化就是这些方法的结果在计算时可能已经过期了(并发操作的原因),实际上可能是个估计值.不过这些方法在并发环境的用处很小,因此被牺牲掉了来换取更重要操作(get,put,containsKey,remove)的性能优化.
+	
+3.
+	ConcurrentHashMap与synchronizedMap和HashTable相比,有着更多优势和更少的劣势,大多数情况下并发推荐ConcurrentHashMap除非需要在某些操作上强一致性，进行"独占访问",才放弃.
+```
+
+```java
+//ConcurrentMap在一些复合操作上已经是线程安全操作或者说是原子操作,"若没有则添加","若相等则移除","若相等则替换"
+public interface ConcurrentMap<k,v> extends Map<K,V>{
+    V putIfAbsent(K key,V value);
+    boolean remove(K key,V value);
+    boolean replace(K key,V oldValue,V newValue);
+    V replace(K key,V newValue);
+}
+```
+
+* 并发容器-CopyOnWriteArrayList／CopyOnWriteArraySet
+
+```
+
+```
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+```
