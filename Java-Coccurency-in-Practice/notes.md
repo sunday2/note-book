@@ -773,7 +773,7 @@ public interface ConcurrentMap<k,v> extends Map<K,V>{
 每一次修改容器都会触发复制底层数组操作,这需要一定开销，特别是容器的规模较大时,所以仅当迭代操作(读)远远多于修改(写)操作时,才应该使用"写入时复制"容器.
 ```
 
-* 队列和生产者消费者模式
+* 队列和生产者消费者模式(对象所有权的转移)
 
 ```
 1.队列需要考虑的问题
@@ -798,7 +798,61 @@ public interface ConcurrentMap<k,v> extends Map<K,V>{
 
 原则:
 保证只有一个线程能接受被转移的对象.
+```
 
+* 阻塞方法
+
+```
+阻塞方法:
+1.等待I/O结束
+2.等待获取某个锁
+3.等待从Thread.sleep()醒来
+
+tips:
+其实,线程是有生命周期的.生命周期由很多状态组成,从jvm角度可以划分为这几个阶段:new,runnable,running,blocked(包括了blocked,waiting,time_waiting),termianted.
+在操作系统层面线程只有阻塞状态,在jvm层面细分出了三种(blocked,waiting,time_wating).
+
+所谓的阻塞方法,就是在线程中调用该方法会造成该线程处于阻塞状态.调用Thread.sleep方法会使线程处于由running状态切换为time_waiting状态;调用wait()方法会是线程由running状态转换为waiting状态;线程等待某个锁则会由running状态切换为blocked状态.这些能造成线程处于阻塞状态的称为阻塞方法.
+```
+
+* 线程中断
+
+```
+中断是一种协作机制.一个线程不能强其它线程立即停止正在执行的操作.当线程a中断线程b,a仅仅是要求b在执行在某个可以暂停的地方停止正在执行的操作----前提是b线程愿意停止下来.
+
+```
+
+* Interrupted-Exception
+
+```
+抛出该异常需要两个条件:
+1.线程处于阻塞状态(正好阻塞方法执行中)
+2.线程背调用了中断方法,interrupt方法.
+```
+
+```
+Interrupted-Exception异常处理方式:
+1.传递InterruptedException.这是最明智的策略-将异常抛給调用者，即调用了中断的方法.
+2.恢复中断.有时候不能抛出InterruptedException,例如当代码的是Runnable的一部分时,这种情况下必须捕获异常,并且调用当前线程上的interrupt方法恢复中断状态.
+```
+
+```java
+public class TaskRunnable implements Runnable{
+    BlockingQueue<Task> queue;
+    ...
+        
+        
+    public void run(){
+        try{
+            processTask(queue.take());
+        }catch(InterruptedException){
+            //恢复被中断的状态
+            Thread.currentThread().interrupt().
+        }
+        
+        
+    }
+}
 ```
 
 
