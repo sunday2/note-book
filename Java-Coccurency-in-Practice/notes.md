@@ -855,25 +855,129 @@ public class TaskRunnable implements Runnable{
 }
 ```
 
+* 同步工具类
 
+```
+定义:
+同步工具类可以是任何一个对象，只要它根据其自身的状态来协调线程的控制流.它们都包含一些特定的结构化属性,它们封装了一些状态,这些状态将决定执行同步工具类的线程是继续执行还是等待(可以想下阻塞队列在空队列和满队列的状态下线程阻塞).
 
+例子:
+阻塞队列,信号量(semaphore),栅栏(Barrier),闭锁(Latch)
+```
 
+* 闭锁
 
+```
+定义:
+闭锁时一种同步工具类,可以延迟线程的进度直到其到达终止状态.
+使用场景:
+可以用来确保某些活动直到其它活动都完成后才继续执行.
+比如:
+(1)确保某个计算在其需要的所有资源都被初始化之后才继续执行.
+(2)确保某个服务在其它依赖的服务都已经启动之后才启动.
+(3)等待直到某个操作的所有参与者(例如,在多玩家游戏中的所有玩家)都就绪再继续执行.
+```
 
+* CountDownLatch(同步工具类-闭锁)
 
+```
+CountDownLatch属于并发包中对同步工具类中的闭锁的一种实现.
+(1)它包括一个计数器,该计数器初始化为一个正数,表示需要等待的事件数量(new的时候作为构造函数参数传入);
+(2)该类的countDown方法调用后会递减计数器,表示有一个事件已经发生.
+(3)该类的await方法调用后会阻塞当前线程,直到计数器变为0.
+```
 
+```java
+public class TestHarness{
+    public long timeTasks(int nThreads,final Runnable task) throws InterruptedException{
+        final CountDownLatch startGate = new CountDownLatch(1);
+        final CountDownLatch endGate = new CountDownLatch(nThreads);
+        
+        for (int i = 0; i < nThreads; i++) {
+            Thread t = new Thread() {
+                public void run() {
+                    try {
+                        startGate.await();
+                        try {
+                            task.run();
+                        } finally {
+                            endGate.countDown();
+                        }
+                    } catch (InterruptedException ignored) {
+                    }
+                }
+            };
+            t.start();
+        }
 
+        long start = System.nanoTime();
+        startGate.countDown();
+        endGate.await();
+        long end = System.nanoTime();
+        return end - start;
+    }
+}
+```
 
+```
+tips:
+(1)例子中使用了两个闭锁,为什么需要startGate是为了提高统计耗时的准确性,endGate才是较重要的闭锁.
+(2)实际使用中如例子中一般一个线程对应一个事件,所以endGate计数器的数量设置为需要等待的线程数.
+(3)由于一个线程对应一个事件,所以在线程的方法体中需要调用endGate的countDown方法,表示当前事件执行完.
 
+总结一句就是某个线程在等待其它线程执行完毕才能继续执行下去(例如上面的例子)
+```
 
+* FutureTask(同步工具类-闭锁)
 
+```
+FutureTask属于并发包中对同步工具类中的闭锁的一种实现.
+(1)线程的实现有三种方式,extends,implements(Runnable),implements(Callable).FutureTask需要和Callable配合使用,是一种可生成结果的Callable.
+(2)Future.get方法被调用会阻塞当前线程,直到FutureTask关联的线程返回结果或者返回异常.
+使用场景:
+通过提前启动计算,可以减少在等待结果时需要的时间.
+```
 
+```java
+public class Preloader {
+    ProductInfo loadProductInfo() throws DataLoadException {
+        return null;
+    }
 
+    private final FutureTask<ProductInfo> future =
+        new FutureTask<ProductInfo>(new Callable<ProductInfo>() {
+            public ProductInfo call() throws DataLoadException {
+                return loadProductInfo();
+            }
+        });
+    private final Thread thread = new Thread(future);
 
+    public void start() { thread.start(); }
 
+    public ProductInfo get()
+            throws DataLoadException, InterruptedException {
+        try {
+            return future.get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof DataLoadException)
+                throw (DataLoadException) cause;
+            else
+                throw LaunderThrowable.launderThrowable(cause);
+        }
+    }
 
+    interface ProductInfo {
+    }
+}
 
+class DataLoadException extends Exception { }
 
 ```
 
 ```
+Callable表示的任务可以抛出受检查的或未受检查的异常,并且任何代码都可能抛出一个Error.不管抛出什么异常,都会被封装到一个ExcutionException并在Future.get中被重新抛出.这使得get的代码变得复杂,因为ExcutionException是作为一个Throwable类返回的，处理起来并不容易.
+```
+
+
+
