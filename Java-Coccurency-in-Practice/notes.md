@@ -979,5 +979,59 @@ class DataLoadException extends Exception { }
 Callable表示的任务可以抛出受检查的或未受检查的异常,并且任何代码都可能抛出一个Error.不管抛出什么异常,都会被封装到一个ExcutionException并在Future.get中被重新抛出.这使得get的代码变得复杂,因为ExcutionException是作为一个Throwable类返回的，处理起来并不容易.
 ```
 
+* Semaphore(同步工具类-闭锁)
 
+```
+Semaphore属于并发包下对同步工具类中闭锁的一种实现。
+(1)控制同时访问某个特定资源的操作数量。所以可以实现某种资源池(数据库连接池)。
+(2)将任何一种容器变成一种有界容器。
+（2）同时执行某个指定操作的数量。
+（3）最特殊的就是二值信号量，即初始值为1的Semaphore。此时信号量充当互斥体，并具备不可重入的加锁语义。
+```
+
+```
+使用:
+(1)Semaphore管理着一组虚拟的许可，许可的初始数量通过构造函数来指定。类似new Semaphore(1)。
+(2)执行操作之前先通过acquire方法获取许可。
+(3)执行完操作之后通过release方法获取许可。
+```
+
+```java
+public class BoundedHashSet<T>{
+    private final Set<T> set;
+    private final Semaphore sem;
+    
+    public BoundedHashSet(int i){
+        this.set = Collections.synchronizedSet(new HashSet<T>());
+        sem = new Semaphore(bound);
+    }
+    
+    public boolean add(T o) throws InterruptedException{
+        sem.acquire();
+        boolean wasAdded  = false;
+        try{
+            wasAdded = set.add(o);
+        	return wasAdded；
+        }finally{
+            //校验是否add成功，否则释放掉许可
+            if(!wasAdded){
+                sem.release();
+            }
+        }
+    }
+    
+    
+    pulibc boolean remove(){
+        boolean wasRemoved = set.remove(o);
+        if(wasRemoved)
+            sem.release();
+        return wasRemoved;
+    }
+}
+```
+
+```
+上面是使用Semaphore将一个容器封装变成一个有界容器。
+这里要注意在调用acquire方法后要再次校验，如果没有add成功，要release掉该次许可。
+```
 
