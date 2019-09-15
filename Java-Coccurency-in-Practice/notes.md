@@ -1035,3 +1035,9 @@ public class BoundedHashSet<T>{
 这里要注意在调用acquire方法后要再次校验，如果没有add成功，要release掉该次许可。
 ```
 
+* 闭锁
+
+```
+闭锁是一次性对象，一旦进入终止状态，就不能被重置。
+```
+
