@@ -1090,3 +1090,88 @@ tips:
 1.并发下保护同一个不变性条件的所有变量需要使用同一个锁。
 ```
 
+
+
+
+
+* 任务执行
+
+```
+多线程的目的本质上就是分解任务,所以线程->任务的概念一定程度上是一样的。、
+任务边界：理想情况下，各个任务应该是独立的，任务不依赖于其它任务的状态，结果或者边界，此时能够实现最大的并发性。
+平时我们使用的web服务器都提供了一种自然的任务边界选择方式:以独立的客户请求为边界，每个请求相互独立(相当于一个请求就启动一个线程处理该连接,这个是服务器程序帮我们实现的，所以程序在并发情况下有瓶颈，也有最大连接数，因为不可能无限启动线程处理)。
+例子:
+Web服务器，邮件服务器，文件服务器，数据库服务器
+```
+
+```java
+//bad demo,串行的服务器
+class SingleThreadWebServer{
+    pubilc static void main(String[] args) throws IOException{
+        ServerSocket socket = new ServerSocket(80);
+        while(true){
+            Socket connection = socket.accept();
+            handleRequest(connection);
+        }
+    }
+}
+```
+
+```
+思考:
+上面显然启动了一个后台服务，一直监听80端口，当有请求进来的时候，会一个一个串行处理。上一个请求没处理完，那么下一个请求就会阻塞住了，阻塞超过限制时间显然就会timeout异常。所以处理速度取决于handleRequest的耗时。如果我们将每个请求放在单独的线程处理，这样子就提高了并发能力。
+```
+
+```java
+//bad demo,并行的服务器，多线程，但是存在无限制创建线程的不足
+class ThreadPerTaskWebServer{
+    pubilc static void main(String[] args) throws IOException{
+        ServerSocket socket = new ServerSocket(80);
+        while(true){
+            final Socket connection = socket.accept();
+            Runnable task = new Runnable(){
+                handleRequest(connection);
+            };
+            new Thread(task).start();
+        }
+    }
+}
+```
+
+```
+代码已经有改进了，串行处理通过每个请求单独启动一个线程处理来达到并行处理的目的，但是存在问题，无限制创建线程。
+线程其实并无法无限制创建下去，肯定会有一个瓶颈，也就是最存在最大线程数，这个最大线程数的限制值是随着平台的不同而不同，并受很多因素制约，包括JVM的启动参数，底层系统对线程的限制等。如果不约束最终会导致oom错误。
+```
+
+* 无限制创建线程的不足
+
+```
+1.线程生命周期开销非常高。无限制创建线程无法复用之前的线程。时间开销
+2.资源消耗。比如内存
+3.稳定性。任何程序都有瓶颈，而无限制显然意味着无瓶颈。
+```
+
+* 任务和线程概念区别
+
+```
+1.任务是一组逻辑工作单元，线程是使任务异步执行的机制。
+2.两种通过线程来执行任务的策略。
+(1)把所有任务放在单个线程串行执行。糟糕的相应性和吞吐量。
+(2)把任务放在各自的线程中执行。“为每一个任务创建一个线程”的方式存在资源管理的复杂性。
+
+```
+
+* 强大又简单的Excutor
+
+```java
+public interface Excutor{
+    void excute(Runnable command);
+}
+```
+
+```
+就是这个简单的接口，衍生出了很多类。
+```
+
+
+
