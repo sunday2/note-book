@@ -1170,7 +1170,179 @@ public interface Excutor{
 ```
 
 ```
-就是这个简单的接口，却为是很多异步任务执行框架提供了基础。
+就是这个简单的接口，却为是很多异步任务执行框架提供了基础，它提供了一种标准的方法将任务的提交过程与执行过程
+解耦。
+```
+
+* 隐藏在Excutor中的设计模式
+
+```
+Excutor是基于生产者-消费者模式的。
+在Java类库中，任务执行的主要抽象不是Thread而是Excutor。
+
+为什么说Excutor是基于生产者和消费者？
+关键在于找到生产者和消费者角色。提交任务(Runnable)给Excutor的操作就是生产者，Excutor内部会有一个workqueue队列，存放任务，任务会源源不断的放到work queue队列中。消费者就是线程，比如在ThreadPoolExcutor中内部就有ThreadFactory，会new 线程来执行(消费)任务(Runnable)。所以在自定义线程池中有一个参数肯定是指定消费者(Thread)的最大数量。
+
+```
+
+* Excutor的解耦
+
+```
+任务的提交过程和执行过程解耦是如何解耦的呢？
+我们把线程(Runnable)交给Excutor去统一调度，这个就是提交过程。
+任务的执行过程交给了Excutor内部的调度策略去解决。
+```
+
+```java
+class TaskExcutionWebServer{
+    private static final int NTHREADS = 100;
+    private static final Excutor exec = Excutors.newFixedThreadPool(NTHREADS);
+    
+   	public static void main(String[] args){
+        ServerSocket socket = new ServerSocket(80);
+        while(true){
+            final Socket = new ServerSocket(80);
+            Runnable task = new Runnable(){
+                public void run(){
+                    handleRequest(connection);
+                }
+            };
+            exec.execute(task);
+        }
+    }
+}
+```
+
+```
+思考:
+我们将之前的粗暴的执行方式调整为任务的具体执行策略交给了Excutor内部处理，所以，任务的提交和执行进行了解耦。如果我们需要调整任务的执行策略，那么我们只需要改变Excutor就可以了，像上面的代码中的Excutor使用的是concurrent下内置的已经帮我们实现的Excutor:FixedThreadPool。
+从字面上看可以知道该Excutor使用了线程池来管理内部的线程，而且该线程池有个特点是固定大小的。国内的一线互联网可能会更提倡通过ThreadPoolExcutor自定义线程池，但是看了Excutors.newFixedThreadPool你会发现它其实也是通过new ThreadPoolExcutor来实现的，只不过keepAliveTime设置为了0，也就是new ThreadPoolExcutor中的keepAliveTime参数设置为0，那么就相当于一个固定大小的线程池了。这里使用的是jdk内置的Excutor，如果我们想要调整任务的执行策略，那么我们只需要实现Excutor接口就可以了.
+```
+
+```java
+//自定义执行策略,为每个任务启动一个新线程处理
+public class ThreadPerTaskExecutor implements Excutor{
+    public void excute(){
+        new Thread(r).start();
+    }
+}
+```
+
+```java
+//自定义执行策略，每个任务不启动线程执行，而只是调用run方法，这样子其实相当于普通方法了，串行执行
+public class WithinThreadExecutor implements Excutor{
+    public void execute(Runnable r){
+        r.run();
+    }
+}
+```
+* 隐藏在Excutors中的设计模式
+
+```
+Excutors.newFixedThreadPool是静态工厂方法。
+```
+
+
+
+* 执行策略和最佳执行策略
+
+```
+执行策略定义了任务执行的“WHAT,WHERE,WHEN,HOW”等方面。
+```
+
+```
+最佳策略取决于可用的计算资源(内存，cpu等)以及对服务质量(响应速度)的需求。
+将任务的提交与任务的执行策略分离开来，有助于在部署阶段选择与可用硬件资源最匹配的策略(将执行策略相关的参数比如corePoolSize,maxPoolSize,keepAliveTime等抽出来，可以方便调整).
+```
+
+* Excutors静态工厂方法中的那些内置线程池
+
+```
+newFixedThreadPool:
+该线程池的特点就是固定大小的线程池，设置为10个那么将会固定为10个，需要注意的是它并不是一下子创建10个线程，而是根据每提交一个任务再创建，所以是懒创建的模式，直到线程数量达到设置的限定值，而且如果某个线程在执行过程中发生异常而销毁了，它会再补充一个进来。相当于将keepAliveTime设置为0L，且corePoolSize和MaxPoolSize值一样。使用的队列是LinkedBlockingQueue。
+```
+
+```
+newCachedThreadPool:
+将创建一个可缓存的线程池。线程池无限大。
+```
+
+```
+newSingleThreadExcutor:
+固定只有一个线程的线程池。相当于将keepAliveTime设置为0L，corePoolSize设置为0，MaxPoolSize设置为0L。
+```
+
+```
+newScheduledThreadPool:
+创建一个固定长度的线程池，而且以延迟或定时的方式来执行，类似Timer。注意延迟执行和定时执行的区别，对应方法分别为schedule和scheduleAtFixedRate方法。使用的队列是DelayedWorkQueue。
+
+延时执行是基于上次任务执行完毕后再执行，任务执行时间不定；定时执行是不管上次任务是否执行完毕时间到了就执行，执行时间是确定的。每个几秒执行一次一般描述的是定时任务。定时任务要注意如果是单线程的话这个时间间隔和任务执行时间的关系。
+```
+
+* 小结
+
+
+```
+通过看源码可以发现这些静态工厂方法最终都是new ThreadPoolExcutor来实现的。只不过修改了一些参数，比如将keepAliveTime设置为0L，corePoolSize和maxPoolSize设置为一样，那么就是一个FixedThreadPool了。需要小心存放任务的队列大小，LinkedBlockingQueue如果创建的时候没有传递大小作为参数，那么意味着这是无限大小的队列，极端情况下会耗尽内存(blocking指的是取和放的操作是阻塞的)
+```
+
+* Excutor的生命周期管理
+
+```
+生命周期的管理是通过ExcutorService接口实现的，运行，关闭（粗暴关闭:直接关闭机房类似，平缓关闭：完成所有已经启动任务：是指已经在任务队列中的任务？，并且不再接受任何新的任务），已终止。
+```
+
+```java
+public interface ExcutorService extends Executor{
+    void shutdown();
+    List<Runnable> shutdown();
+    boolean isShutdown();
+    boolean isTermimated();
+    boolean awaitTermination()throws InterrutedException;
+    //......其它用于任务提交的便利方法
+}
+```
+
+```java
+//支持关闭操作的web服务器
+class LifecycleWebServer{
+    private final ExcutorService exec= ...;
+    
+    public void start() throws IOException{
+       ServerSocket socket = new ServerSocket(80);
+        while(!exec.isShutdown()){
+            try{
+                final Socket conn = socket.accept();
+                exec.execute(new Runnable(){
+                    public void run(){
+                        handleRequest(conn);
+                    }
+                });
+            }catch(RejectedExecutionException e){
+                if(!exec.isShutdown())
+                    log("task submission rejected",e);
+            }
+        }
+    }
+    
+    pubilc void stop(){
+        exec.shutdown();
+    }
+    
+    void handleRequest(Socket connection){
+        Request req = readRequest(connection);
+        if(isShutdownRequest(req)){
+            stop();
+        }else{
+            dispatchRequest(req);
+        }
+    }
+}
+```
+
+```
+思考：
+这段代码值得借鉴，因为这是一个简单的web服务器思路
 ```
 
 
