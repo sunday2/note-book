@@ -1300,6 +1300,822 @@ output:
 
 ### read
 
+```
+从键盘读取输入的时候，要按下enter来表示输入结束，但是有时候这样子很麻烦，read提供了一个不需要按回车键就能解决的方案。
+read是一个很重要的bash命令，它用于从键盘或者标准输入中读取文本，并且可以以交互的形式读取来自用户的输入。
+```
+
+```
+demo 1:
+
+read -n <number_of_chars> variable_name
+
+$ read -n 2 var
+
+解析：
+上面的命令表示从输入中读取2个字符并存入变量var中。注意的是不需要按回车键就能读取键盘的输入，2个字符后会自动结束从键盘读取，不需要按回车键。
+
+-------------------------------------------
+demo 2:
+$ read -s var
+
+解析：
+用无回显的方式读取密码，存到变量var中。 有时候我们需要读取键盘输入，但是是比较敏感的数据，不需要回显，那么可以使用该命令。需要回车键作为读入的结束标志。
+
+
+----------------------------------
+demo 3:
+$ read -p "Enter input:" var
+
+output:
+Enter input:hello
+
+$ echo $var
+output:
+hello
+
+解析：
+上面的命令表示从键盘读取输入到变量var，而且有提示信息。需要回车键作为读入的结束标志。
+
+------------------------------------
+demo 4:
+
+read -t timeout var
+
+$ read -t 2 var
+
+解析：
+上面的命令表示在2秒内读取键盘输入到变量var中。这里不需要回车键作为结束标志了，2秒后自动结束读取，不要按回车键。
+
+
+------------------------------------
+demo 5:
+
+read -d <delim_char> var
+
+$ read -d ":" var
+
+解析:
+用特定的定界符作为读取键盘输入的结束。上面的例子中，定界符是冒号，也就是读到冒号的时候自动结束读取，不需要回车键。
+```
+
+
+
+### 运行命令直至成功 && 重试机制
+
+```)
+运行命令直至成功在实际中可能用的不多，原因如下：
+(1) 如果命令里依赖了第三方的服务，那么意味着第三方服务是不可控的，没人能保证第三方服务一定可靠。
+(2) 不成功一直重试发请求，有可能会把第三方服务搞挂了。
+
+实际使用更多的是有重试次数的限制，设置重试计数器，达到阈值就不重试了。
+```
+
+* 定义重复函数
+
+```
+(1)
+function repeat()
+{
+  while true
+  do
+    $@ && return
+  done
+}
+
+(2)
+function repeat()
+{
+  while :
+  do
+    $@ && return
+  done
+}
+
+上面两种写法在功能上是等价的，但是第二种写法性能上会稍微好一点。在于while后面跟的是true还是内建的:命令。
+在大多数现代系统种，true是作为/bin中的一个二进制文件来实现的，也就意味着true会单独生成一个进程，这需要耗费资源和时间，而:命令是shell内建的命令，类似于一个函数，而true是一个单独完整的程序。:命令总是返回0的退出码(注意，shell中退出码为0表示成功，也就是true)。
+
+还有一点就是repeat函数成功后的退出是通过&&操作符，然后return来终止循环的，而不是break。可以发现命令之间通过||和&&连接可以达到简化代码的目的，注意两种的区别。
+
+上面例子中，如果$@命令执行成功了才会执行&&连接着的return命令，否则不会执行，也就是回一直循环。
+```
+
+* 增加延时
+
+```
+function repeat()
+{
+  while :
+  do
+    $@ && return
+    sleep 30
+  done
+}
+
+解析:
+可以看到在循环体里面加上了sleep 30秒的缓冲时间，意思是命令执行不成功，先休眠30秒再进入下一次的循环体。
+主要考虑的是如果命令里有类似网络请求或者io操作，起到缓冲作用。这是一种很常规的编程范式，或者说编程思想。
+```
+
+* 添加重试次数而不是无限
+
+```
+function repeat()
+{
+  local cout=0;
+  while :
+  do
+    if [[ count -ge 3]];
+    then
+      return;
+    fi
+    $@ && return;
+    count++;
+    sleep 30;
+  done
+}
+
+解析：
+上面的例子在循环体中加上了重复执行命令的次数判断，执行了3次后就直接返回了，实际中可以打印下日志从而区分是函数是重试后还是失败了。
+重试机制也是一种编程思想，一种编程范式。
+```
+
+* demo
+
+```
+demo 1:
+
+#!/bin/bash
+
+function repeat()
+{
+  local cout=0;
+  while :
+  do
+    if [[ count -ge 3]];
+    then
+      return;
+    fi
+    $@ && return;
+    count++;
+    sleep 30;
+  done
+}
+
+repeat wget -c http://xxxxx
+
+解析：
+在wget命令前加上repeat函数，也就是将wget命令传递给repeat函数。
+```
+
+
+
+### 字段分隔符和迭代器
+
+```
+内部字段分隔符(Internal Field Separator, IFS)是shell脚本编程中的一个重要概念。特别是在处理文本的时候作用很大。
+
+IFS是特定用途的定界符(delimeter)。其它定界符还有命令的定界符是分号;和换行符/n。
+
+IFS是存储定界符的环境变量。
+
+也就是说是和环境变量PATH，UID，SHELL一样的，在终端通过echo $IFS可以看到该定界符是什么。(由于默认的IFS是空白字符，也就是可能是空格，水平制表符，换行符这种，所以肉眼看不出)。
+```
+
+
+
+* IFS的使用
+
+```
+demo 1：
+#!/bin/bash
+data="name,sex,rollno,location"
+OLD_IFS=$IFS
+IFS=, #now,
+
+for item in $data;
+do
+    echo item: $item
+done
+
+IFS=$OLD_IFS #reset
+
+解析：
+脚本里有一个字符串，字符串中的内容是以逗号分隔，我们称这种数据为逗号分割型数值(comma seperated value,CSV)。
+我们想要迭代该字符串，那么可以将IFS设置为逗号，shell则会将逗号看作内部定界符，直接可以对字符串进行迭代。
+
+注意的是，迭代完之后，需要将IFS恢复为原来的默认值，所有修改IFS之前要保留拷贝，处理完之后需要恢复原设置。、
+
+
+---------------------------------------------------
+demo 2:
+#!/bin/bash
+line="root:x:0:0:root:/root:/bin/bash"
+OLD_IFS=$IFS
+IFS=":"
+count=0
+for item in $line;
+do
+    [ $count -eq 0 ] && user=$item;
+    [ $count -eq 6 ] && shell=$item;
+    let count++
+done;
+IFS=$OLD_IFS
+echo $user\'s shell is $shell;
+
+output:
+root's shell is /bin/bash
+
+解析：
+脚本里的line字符串其实来自于系统里的/etc/passwd文件，文件里每一行包含了每一位系统用户的相关属性，每一行格式是固定的，以冒号作为定界符。第一个元素是用户名，最后一个元素是该用户对应的默认shell。
+
+和demo 1一样通过迭代字符串获取对应的值，这里字符串定界符是冒号。
+```
+
+
+
+### 循环语句（loop statement）
+
+```
+无论哪种编程语言，循环语句都是必要的。在shell script，有三种loop的格式。
+
+(1)for的形式，细分为两种。
+for var in list;
+do
+    commands; #使用变量$var
+done
+
+解析：
+list可以是一个字符串，也可以是一个序列。字符串的化注意当前IFS是什么。
+
+for((i=0;i<10;i++))
+{
+	commands; #使用变量$i
+}
+
+
+(2)while循环
+while condition;
+do
+	commands;
+done
+
+解析：
+用true或者冒号命令作为循环条件，可以产生无限循环。
+
+
+
+(3)until循环
+#/bin/bash
+x=0;
+until [ $x -eq 9 ];  #条件是[ $x -eq 9 ]
+do
+	let x++;j echo $x;
+done
+
+解析：
+until循环会一直循环，一直到给定的条件为真。
+```
+
+* 生成连续的数字列表或者字母列表
+
+```
+{<num1>..<num2>}可以生成从num1到num2的数字列表。num1<num2.
+{<letter1>..<letter2>}可以生成从letter1到letter2的字母列表。letter1和letter2要么都小写要么都大写，letter1在字母表中排在letter2前面。
+
+demo 1:
+$ echo {1..10}
+
+output:
+1 2 3 4 5 6 7 8 9 10
+
+解析:
+可以看到生成了1到10的数字列表，元素之间是空格作为定界符。(说明默认的IFS是空格?)
+
+demo 2:
+$ echo {a..j}
+
+output:
+a b c d e f g h i j
+
+解析:
+生成了字母列表，元素之间空格作为定界符。
+
+
+demo 3:
+$ echo {A..J}
+
+output:
+A B C D E F G H I J
+
+解析:
+生成了A到J的字母列表，空格作为定界符。
+```
+
+
+
+### if语句（比较与测试）
+
+```
+在编程语言中，if语句也是必要的，它控制着程序的流程。
+```
+
+* 模板
+
+```
+(1)
+if condition;
+then
+	commands;
+fi
+
+解析:
+简单的if，没有else也没有嵌套。
+
+
+(2)
+if conditon;
+then
+	commands;
+else if condition; then
+	commands;
+else 
+	commands;
+fi
+
+解析：
+if else。
+```
+
+
+
+* test命令[]
+
+```
+test命令用于判断条件，其符号为方括号[].
+
+格式如下:
+[ condition ]
+等价于
+test condition
+
+注意的是使用方括号的方式，条件和方括号之间有空格，不能紧挨着放括号，否则报错。
+
+demo 1：
+$ if [ $var -eq 0 ]; then echo "True"; fi
+等价于
+$ if test $var -eq 0; then echo "True"; fi
+```
+
+
+
+* 逻辑运算符简化条件判断
+
+```
+有时候if的条件判断部分会特别长，可以考虑逻辑运算符简化。
+
+(1)
+[ condition ] && <action>: &&是逻辑与运算符。如果condition为真，则继续执行后面的action；否则，不执行后面的action
+
+(2)
+[ condition ] || <action>: ||是逻辑或运算符。如果conditon为真，则不执行后面的action; 否则，执行后面的action。
+
+这是一个很有用的技巧，而且每一条命令本身也是一个条件。 即命令本身就是条件，命令状态返回码为0表示成功，等价于true，命令返回码非0表示失败，等价于false。
+```
+
+
+
+* 比较运算
+
+```
+1.算术比较
+demo 1:
+$ [ $var -eq 0 ] 
+
+解析：
+-eq是-equals的缩写。所以当$var等于0的时候，test命令返回真；当不等于0的时候，test命令返回假。
+
+----------------------------
+
+demo 2:
+$ [ $var -ne 0 ]
+
+解析:
+-ne是-not equals的缩写。所以当$var非0的时候，test命令返回真；当等于0的时候，test命令返回假。
+
+
+--------------------------------
+demo 3:
+$ [ $var1 -ne 0 -a $var2 -gt 2 ]
+
+解析:
+可以使用逻辑与-a结合多条件进行判断。-a即-and。
+
+
+--------------------------------
+demo 4:
+$ [ $var1 -ne 0 -o $var2 -gt 2 ]
+
+解析；
+可以使用逻辑或-o结合多条件判断。-o即-or。
+
+
+其它常见的算术比较符如下：
+-gt: greater than, 大于
+-lt: less than, 小于
+-ge: greater than or equals, 大于或等于
+-le: less than or equals, 小于或等于
+```
+
+
+
+````
+2.文件系统相关的测试
+可以使用不同的条件标志测试文件系统相关的不同属性。
+
+demo 1:
+$ [ -f $file_var ]
+
+解析：
+如果给定的变量$file_var包含正常的文件路径或文件名，则返回真。
+
+----------------------------------
+demo 2:
+$ [ -x $var ]
+
+解析：
+如果给定的变量包含的文件是可执行文件，则返回真。
+
+------------------------------------
+demo 3:
+$ [ -d $var ]
+
+解析：
+如果给定的变量是目录文件，则返回真。
+
+------------------------------------
+demo 4：
+$ [ -e $var ]
+
+解析：
+如果给定的变量包含的文件存在，则返回真。
+
+-------------------------------------
+demo 5:
+
+$ [ -c $var ]
+
+解析：
+如果给定的变量包含的是一个字符设备文件的路径，则返回真。
+
+
+----------------------------------------
+demo 6:
+$ [ -b $var ]
+
+解析：
+如果给定的变量包含的是一个块设备文件的路径，则返回真。
+
+------------------------------------------
+demo 7:
+$ [ -w $var ]
+
+解析：
+如果给定的变量包含的是一个可写的文件的路径，返回真。
+
+
+---------------------------------------
+demo 8：
+$ [ -r $var ]
+
+解析：
+如果给定的变量包含的是一个可读的文件的路径，返回真。
+
+-------------------------------------------
+demo 9：
+$ [ -L $var ]
+
+解析：
+如果给定变量包含的是一个符号链接，返回真。
+````
+
+
+
+```
+3.字符串比较
+字符串比较时，test符最好使用双中括号，因为有时候单个中括号会产生错误，最好避开它们。
+
+demo 1:
+$ [[ $str1 = $str2 ]]
+
+等价于
+$ [[ $str1 == $str2 ]]
+
+解析:
+判断两个字符串是否相等。单个=或者双等号都可以，单等号注意左右两边都有空格，此时才表示相等，如果没有空格预留则表示赋值操作。
+
+------------------------------------------------------------ 
+demo 2:
+$ [[ $str1 != $str2 ]]
+
+解析：
+判断两个字符串不相等，不相同返回真，否则返回假。
+
+-------------------------------------------------------------
+demo 3:
+$ [[ $str1 > $str2 ]]
+
+$ [[ $str1 < $str2 ]]
+
+解析：
+判断两个字符串的字母序。
+
+-------------------------------------------------------------
+demo 4:
+$ [[ -z $str1 ]]
+
+$ [[ -n $str1 ]]
+
+解析:
+上面两条命令分别判断$str1变量是空字符串还是非空字符串。
+
+```
+
+* 多条件组合
+
+```
+通过逻辑运算符&&和||组合多个条件。
+demo 1:
+#!/bin/bash
+
+str1="Not empty"
+str2="''"
+if [[ -n $str1 ]] && [[ -z $str2 ]];
+then 
+	commands;
+fi
+```
+
+
+
+### cat
+
+```
+cat用于拼接多个文件并输出到stdout，其截取自单词concatenate(拼接)。多个文件指的是1到多个。
+man:
+concatenate files and print on the standard output.
+
+基本用法:
+cat file1 file2 file3
+```
+
+```
+demo 1:
+$ cat one.txt
+
+output:
+This is line from one.txt
+
+$ cat two.txt
+
+output:
+This is line from two.txt
+
+$ cat one.txt two.txt
+
+output:
+This is line from one.txt
+This is line from two.txt
+
+
+解析：
+可以看到cat根据文件的顺序依次将文件的内容拼接在前一文件的最后一行中，并输出到stdout。
+
+-----------------------------------------
+demo 2:
+$ echo "Text through stdin" | grep - one.txt
+
+output:
+Text through stdin
+This is line from one.txt
+
+解析：
+可以看到cat同样可以读取stdin的内容，或者说stdin本身也是文件的概念，注意的是用-符号来表示stdin。
+
+
+-----------------------------------------
+demo 3:
+$ cat lines.txt
+
+output:
+line1
+line2
+line3
+
+$ cat -n lines.txt
+
+output:
+1 line1
+2 line2
+3 line3
+
+解析：
+加上-n选项可以看到可以在stdout中加上行号。
+
+----------------------------------------
+demo 4:
+$ cat file.py
+
+output:
+def function():
+	var = 5
+	    next = 6
+	third = 7
+	
+$ cat -T file.py
+
+output:
+def funcion():
+^Ivar = 5
+        next = 6
+^Ithird = 7^I
+
+解析:
+将制表符标记为^I, 在排除缩进错误的时候特别有用。因为有些文本对缩进要求很严格，比如yaml格式，python脚本等。这时可以考虑使用cat -T选项。注意的是水平制表符对应的是键盘上的tab键，得留意linux的当前tab键的宽度。
+
+上面的例子中，显然系统中的制表符的宽度是4的，那么通过cat -T我们可以发现在next = 6这一行缩进是有问题的，那么就会最终导致python脚本语法错误。
+
+注意！！！水平制表符tab键和n个空格并不是等价的，tab是一个符号，但是并不等价于n个空格。如果文本里的缩进是使用的tab来达到缩进的目的，那么在不同编辑器下可能会有差异，因为有的编辑器tab符合的长度是4，有些设置的是8，会容易引起版本冲突。
+
+所以，一般缩进我都是用空格而不是tab，所以cat -T这条命令可能就帮不上忙了。
+
+reference:
+tab的宽度是terminal的属性而不是shell的属性，可以通过tabs命令设置tab的宽度。
+1.https://stackoverflow.com/questions/10782699/how-to-set-4-space-tab-in-bash
+
+------------------------------------------
+demo 5:
+$ cat multi_blanks.txt
+
+output:
+line 1
+
+
+line 2
+
+
+
+line 3
+
+
+
+
+line 4
+
+$ cat -s multi_blanks.txt
+
+output:
+line 1
+
+line 2
+
+line 3
+
+line 4
+
+
+分析：
+cat -s可以压缩多余的空白行，或者说美化在stdout的输出。上面的例子中加上-s后，所有行之间都是以一行空白行作为分割。
+```
+
+
+
+### script & scriptreplay(录制并回放终端会话)
+
+```
+当你需要为别人在终端演示某些操作或是准备一个命令行教程时，也许你可以一遍手动输入命令，一遍演示，这是有一种实时的演示方式；也可以录制一段屏幕演示视频，然后再回放出来。
+
+显然回放这种可以达到reuse的目的，个人觉得更好。
+利用script和scriptplay命令，可以录制命令的次序以及时序，记录在文本文件中，最后可以回放的目的。
+```
+
+
+
+### find(文件查找和文件列表)
+
+```
+find命令沿着文件层次结构向下遍历，匹配符合条件的文件，执行相应的操作。
+```
+
+
+
+* 通过文件名搜索(-name/-iname)
+
+```
+demo 1:
+
+$ find <basepath> [-print]
+
+$ find . -print
+
+output:
+.
+./site_values_1.11.0-118.yaml
+./site_values_1.11.0-118.yaml.bak
+./edit_site_value_file.log
+./edit_site_value_file.py
+./foo.template
+./foo.conf
+./eccd-env.yml.template
+./sitefile
+./sitefile/site_values_1.11.0-118.yaml
+./sitefile/site_values_1.11.0-118.yaml.bak
+./test.md
+./3
+./study
+./study/cat-test.txt
+./test.sh
+
+解析：
+列出当前目录和子目录下所有的文件和文件夹。
+-print选项用于打印匹配的文件和文件夹的路径，并且使用\n, 即换行符作为之间的定界符。可以忽略-print, 效果也是一样的，一般情况下都忽略。
+
+---------------------------------------------
+demo 2:
+$ find  /home/slynux -name "*.txt" -print
+
+$ find  /home/slynux -iname "*.txt" -print
+
+
+$ ls
+
+output:
+example.txt EXAMPLE.txt file.txt
+
+$ find . -iname "example*" -print
+
+output:
+./example.txt
+./EXAMPLE.txt
+
+解析:
+根据文件名在某个目录下进行搜索。
+-name或者-iname选项，表示根据文件名进行搜索。两者的区别在于前者不忽略文件名的大小写，后者忽略文件名的大小写问题。
+-print选项可以忽略，一般忽略不写。
+注意的是文件名可以使用通用符也就是*达到模糊搜索的目的。
+
+
+---------------------------------------------
+demo 3:
+$ ls 
+
+output:
+new.txt some.jpg text.pdf
+
+$ find . \( -name "*.txt" -o -name "*.pdf"\) -print
+
+output:
+./new.txt
+./text.pdf
+
+解析：
+通过OR运算符可以匹配多个文件名条件中的一个。
+\(以及\)用于将多个文件名条件作为一个整体。
+
+```
+
+* 通过文件路径搜索(-path)
+
+```
+-path选项将整个文件路径作为一个整体进行匹配, 同样，可以使用通配符*.
+
+demo 1:
+$ find /home/users -path "*/slynux*" -print
+
+output:
+/home/users/list/slynux.txt
+/home/users/slynux/eg.css
+
+解析：
+根据文件路径进行匹配。
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
