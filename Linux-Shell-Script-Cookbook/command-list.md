@@ -3132,13 +3132,136 @@ line
 还可以通过指定模式文件的方式达多个模式，在模式文件中逐行写下模式，然后通过-f选项执行。
 
 
+$ grep -f pattern_file source_file
+
+$ cat pat_file
+
+output:
+hello
+cool
+
+$ echo hello this is cool | grep -f pat_file
+
+output:
+hello this is cool
+
+
 ---------------------------------
 demo 15:
+$ grep "main()" . -r --include *.{c, cpp}
+
+$ grep "main()" . -r --exclude "README"
+
+解析:
+通过--include和--exclude选项可以指定或者排除某些文件，减少搜索范围，从而提高搜索效率。
+--exclude-dir可以排除目录。
+<some>{string1,string2}会被扩展成<some>string1, <some>string2。所以*.{c, cpp}会被扩展成*.c, *.cpp。
 
 
+--------------------------------
+demo 16:
+$ echo test1 > file1.txt
+
+$ echo cool > file2.txt
+
+$ echo test1 > file3.txt
+
+$ grep test1 file* -Z
+
+output:
+file1.txttest1
+file3.txttest1
+
+
+$ grep test1 filer* -Zl
+
+output:
+file1.txtfile3.txt
+
+$ grep test1 -Zl | xargs -0 rm
+
+解析:
+之前介绍过如果stdout是文件列表，通过管道传递给xargs处理时，需要注意文件名包含空格的情况。
+grep通过-Z选项可以指定以0字节字符(空字符)作为stdout文件列表的定界符，xargs通过-0选项指明以空字符作为stdin的定界符，从而避免包含空格的文件名被当成两个文件处理的情况。
+
+由于grep默认输出文件名以及匹配文本，所以-Z选项通常结合-l使用，从而只输出文件而不输出匹配文本。
+
+-------------------------------
+demo 17:
+
+#!/bin/bash
+# 文件名: silent_grep.sh
+# 用途: 测试文件是否包含特定的文本内容
+
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 <match_text> filename"
+  exit 1
+fi
+
+match_text=$1
+filename=$2
+
+grep -q "$match_text" $filename
+
+if [ $? eq 0 ]; then
+  echo "The text exists in the file."
+else
+  echo "Text does not exist in the file."
+fi
+
+
+$ ./silent_grep.sh student student_data.txt
+
+output:
+The text exists in the file.
+解析:
+该脚本中grep带了-q, 即quiet选项，则grep命令不会有任何输出到stdout。通过$?获取grep命令的返回状态。其实
+没有-q选项，有匹配，grep的返回状态为0；无匹配，grep命令的返回状态为1。这个似乎和是否带-q选项无关。
+
+---------------------------------
+demo 18:
+$ seq 10 | grep 5 -A 3
+
+output:
+5
+6
+7
+8
+
+$ seq 10 | grep 5 -B 3
+
+output:
+2
+3
+4
+5
+
+$ seq 10 | grep 5 -C 3
+
+output:
+2
+3
+4
+5
+6
+7
+8
+
+$ echo -e "a\nb\nc\na\nb\nc" | grep a -A 1
+
+output:
+a
+b
+--
+a
+b
+
+解析:
+基于上下文的打印是grep的特色之一。
+通过-A, -B, -C选项可以分别打印出匹配文本以及其后面的n行，匹配文本以及其前面的n行，匹配文本以及其前后面的n行。如果多个匹配，那么会以--作为定界符。
+
+tips: A即After, B即Before, C即Context。
 ```
-
-
 
 
 
@@ -3154,6 +3277,238 @@ stream editor for filtering and transforming text.
 ```
 
 
+
+### 磁盘监视命令(df, du)
+
+```
+计算机硬件资源主要包括cpu，内存，磁盘。得牢牢记住这些资源都是有限的，包括磁盘。
+随着计算机上运行的软件越多，这些硬件资源会慢慢变得不足从而可能影响软件的正常运行。当发现磁盘资源不足的时候，一般得考虑删除或移走大文件。
+
+
+```
+
+* du
+
+```
+du, 即disk usage的缩写。可以统计文件占用磁盘空间的详情。使用du命令时，当前用户需要有目标文件的读权限。
+```
+
+```
+demo 1:
+$ du filename1 filename2 ...
+
+$ du test-grep.txt
+
+output:
+4	test-grep.txt
+
+解析:
+参数为具体某个文件，统计结果默认是以字节作为计量单位。
+
+----------------------------
+demo 2:
+$ du -a directory
+
+$ du -a .
+
+output:
+4	./test-grep.txt
+4	./grep-test/file3.txt
+4	./grep-test/file2.txt
+4	./grep-test/file1.txt
+16	./grep-test
+4	./test-grep-1.txt
+28	.
+
+$ du .
+16	./grep-test
+28	.
+
+
+解析:
+参数为某个目录，带上-a选项，可以显示目录下各个文件(包括目录类型的文件)的磁盘占用详情。
+不带-a选项，只会打印目录类型文件的磁盘占用情况。
+所以，显示各个文件磁盘占用详情一定得带上-a选项。
+
+-------------------------
+demo 3:
+$ du -h filename1 filename2 ...
+
+$ du -h test-grep.txt 
+
+output:
+4.0K	test-grep.txt
+
+解析:
+带上-h选项，可以以标准计量单位KB, MB, GB显示文件占用磁盘情况，可读性更高。
+-h一般会和其它选项一起结合使用！为了可读性。
+
+-----------------------
+demo 4
+$ du -ah directory
+
+$ du -ah .
+
+output:
+4.0K	./test-grep.txt
+4.0K	./grep-test/file3.txt
+4.0K	./grep-test/file2.txt
+4.0K	./grep-test/file1.txt
+16K	./grep-test
+4.0K	./test-grep-1.txt
+28K	.
+
+
+解析:
+带上-h选项，可以以标准计量单位KB, MB, GB显示文件占用磁盘情况，可读性更高。
+
+-----------------------
+demo 5:
+$ du -c filename1 filename2 ...
+
+$ du -c test-grep.txt
+
+output:
+4	test-grep.txt
+4	total
+
+$ du -ch test-grep.txt 
+
+output:
+4.0K	test-grep.txt
+4.0K	total
+
+解析:
+通过-c选项，可以输出目标文件集合的磁盘占用情况的总计。stdout输出结果末尾多了一行total总计。
+c可以理解为count。
+
+------------------------
+demo 6:
+
+$ du -c directory
+
+$ du -c .
+
+output:
+16	./grep-test
+28	.
+28	total
+
+$ du -ch .
+
+16K	./grep-test
+28K	.
+28K	total
+
+解析:
+通过-c选项，可以输出目标文件集合的磁盘占用情况的总计。stdout输出结果末尾多了一行total总计。
+
+---------------------
+demo 7:
+$ du -s filename1
+
+$ du -s directory
+
+$ du -s test-grep.txt 
+
+output:
+4	test-grep.txt
+
+$ du -sh test-grep.txt
+
+output:
+4.0K	test-grep.txt
+
+
+$ du -s .
+
+output:
+28	.
+
+$ du -sh .
+
+output:
+28K	.
+
+解析:
+通过-s选项，即summarize，会只是输出目标文件的分别的合计数据。多个文件作为参数输出的是各个文件对应的合计。一般只带单个文件或者单个目录作为参数。
+
+
+-------------------
+demo 8:
+$ du [-b| -k | -m | -B <BLOCK_SIZE>] filename1 filename2 ...
+
+$ du [-b| -k | -m | -B <BLOCK_SIZE>] directory
+
+$ du -k test-grep.txt
+
+output:
+4	test-grep.txt
+
+解析:
+可以通过选项指定特定的单位打印文件磁盘占用情况。
+-b: 字节(默认输出)
+-k: KB为单位
+-m: MB为单位
+-B <BLOCK_SIZE>: 以BLOCK_ZISE作为计量单位，BLOCK_SIZE以字节为单位。
+
+注意的是，如果原文件很小，但是指定了一个很大的单位，那么这个统计结果就很粗糙，所以一般得指定和实际大小匹配的单位。
+
+----------------------
+demo 9:
+$ du -exclude "WILDCARD" directory
+
+$ du -exclude "*.txt" files
+
+$ du --exclude-from <exclude.txt> directory
+# exclude.txt包含了需要排除的文件列表。
+
+解析:
+统计时可以排除部分文件。
+
+---------------------
+demo 10:
+$ du --max-depth 2 directory
+
+解析:
+通过遍历深度来排除部分文件。
+
+
+----------------------
+demo 11:
+$ find . -type f -exec du -k {} \; | sort -nkr 1 | head
+
+
+解析:
+通过上面的命令序列可以统计指定目录中最大的10个文件(不包括目录，只是普通文件类型)。一定要记住这条命令序列，很有用！！！
+如果没有find直接du结合sort，由于du命令会把目录类型也输出，所以有干扰。
+通过find的-type选项过滤出目标目录普通文件类型的文件，然后再对这些文件执行du命令，并且通过-k指定计量单位统一为KB，方便sort命令进行排序，sort根据第一列也就是磁盘占用大小进行倒排; head在stdout显示前10行。
+```
+
+
+
+* df
+
+```
+df提供磁盘可用空间信息。-f选项会以易读的计量单位为格式打印磁盘空间信息。
+```
+
+```
+demo 1:
+$ df -h
+
+output:
+Filesystem      Size  Used Avail Use% Mounted on
+devtmpfs        486M     0  486M   0% /dev
+tmpfs           496M     0  496M   0% /dev/shm
+tmpfs           496M   57M  440M  12% /run
+tmpfs           496M     0  496M   0% /sys/fs/cgroup
+/dev/vda1        24G  2.2G   21G  10% /
+tmpfs           100M     0  100M   0% /run/user/0
+
+解析:
+第一列也就是Filesystem，类似于windows的c盘，d盘...
+```
 
 
 
