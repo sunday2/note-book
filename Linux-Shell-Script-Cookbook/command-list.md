@@ -3533,6 +3533,9 @@ time命令又分为两种，一种是shell自带内建的time命令，一种是�
 
 使用方式:
 将time命令和相关选项放于目标命令的前面。
+
+
+注意的是time的统计输出属于stderr，即标准错误，而不是stdout。
 ```
 
 
@@ -3554,7 +3557,7 @@ user	0m0.001s
 sys	0m0.003s
 
 解析:
-可以发现在目标命令的正常标准输出的最下面，输出了目标命令的相关执行时间(三种不同类型的时间)。
+可以发现在目标命令的正常标准输出的最下面，输出了目标命令的相关执行时间(三种不同类型的时间，这部分属于stderr)。
 
 三种不同类型的时间:
 (1)real time: 指的是挂钟时间(wall clock time), 也就是命令从开始执行到结束的时间，也是我们平时最见到的统计执行时间的方式，在一段代码片段前打时间戳，在其后面再打一个时间戳，两个时间戳之差作为该代码片段的执行时间。这段时间包括了其它进程所占用的时间片(time slice)，以及进程被阻塞时所花费的时间(e.g., 为等待IO操作完成所用的时间)。
@@ -3587,8 +3590,308 @@ $ /usr/bin/time -a -o output.txt <COMMAND>
 解析:
 可以通过选项-o将相关的时间统计信息写入文件中，-a选项说明以append方式写入文件中。注意文件名一定得跟在-o选项后面，也就是文件名是-o选项的对应参数(参数的参数)。
 
-一开始会觉得通过重定向也可以写入，这个选项是不是有点多余，但是仔细一想，从demo 1可以发现stdout包括了目标命令和time命令的标准输出，重定向就得一起重定向了。
+一开始会觉得通过重定向也可以写入，这个选项是不是有点多余，实际确实也是可以的，time的输出是stderr，目标command的输出是stdout，所以通过重定向是可以的。
+
+tips:
+用shell自带的time命令时，通过stdout和stderr都无法对统计部分的输出进行重定向，这是为啥？发现还得加上个卷括号。
+
+
+-------------------------------------------
+demo 3:
+$ { time ls -al ;} 2>time-err.txt 
+
+output:
+total 20
+drwxr-xr-x. 3 root root 4096 Aug 16 06:56 .
+drwxr-xr-x. 4 root root 4096 Aug  6 07:47 ..
+drwxr-xr-x. 2 root root 4096 Aug  8 02:26 grep-test
+-rw-r--r--. 1 root root   26 Aug  6 07:53 test-grep-1.txt
+-rw-r--r--. 1 root root   26 Aug  6 07:48 test-grep.txt
+-rw-r--r--. 1 root root    0 Aug 16 07:18 time-err.txt
+
+$ cat time-err.txt
+
+output:
+real	0m0.006s
+user	0m0.001s
+sys	0m0.005s
+
+解析:
+如果需要对time命令进行重定向，那么需要在目标命令加分号，以及外层加卷括号。
+
+目标命令的重定向直接在卷括号内部即可。
+
+reference:
+https://qastack.cn/programming/13356628/how-to-redirect-the-output-of-the-time-command-to-a-file-in-linux
+
+-------------------------------------
+demo 4:
+$ /usr/bin/time -f "<FORMAT STRING>" <COMMAND>
+
+$ /usr/bin/time -f "Time: %U" -a -o timing.log uname
+
+output:
+Linux
+
+解析:
+通过-f选项可以利用格式化字符串来格式化时间输出。格式化字符串由对应于特定选项的参数组成，这些参数以%作为前缀：
+real time: %e
+user time: %U
+sys time: %S
+
+
+-------------------------------
+demo 5:
+$ /usr/bin/time -f "Page size: %Z bytes" ls> /dev/null
+
+output:
+Page size: 4096 bytes
+
+解析:
+通过%Z格式化字符串可以获取系统页面的大小。
+
+time命令其实可以获得(目标命令产生的)进程的很多细节信息，包括退出状态，接收到的信号数量，进程上下文的切换次数等。
+
+%C: 进行计时的命令名称以及命令行参数
+%D: 进程非共享数据区域的大小，以KB为单位
+%E: 进程使用的real时间
+%X： 命令的退出状态
+%k: 进程接受到的信号数量
+%W: 进程被交换出主存的次数
+%Z: 系统页面的大小
+%P: 进程获得CPU时间的百分比
+%k: 进程的平均总内存使用量，以KB为单位
+%w: 进程主动进行上下文切换的次数，例如等待IO操作完成
+%c: 进程被迫进行上下文切换的次数(由于时间片到期)
 ```
+
+
+
+### 用cut按列切分文本(cut)
+
+```
+很多时候需要按行切割文本，但是有些时候也需要按列切割文本。文本可以来自文件或者stdin。
+cut命令可以帮助我们按列切分文本，并且可以指定分隔每列的定界符(默认列定界符为水平制表符, 即tab键，空格是不行的)。在cut的术语中，每列被称为一个字段。
+
+基本使用方法:
+$ cut -f <FIELD_LIST> filename
+
+-f表示field，FIELD_LIST是需要显示的列，它由列号组成(列号从1开始)，彼此之间用逗号分隔.
+```
+
+
+
+```
+demo 1:
+$ cut -f 2,3 <FILENAME>
+
+解析:
+这条命令将显示文件里的第二和第三列。
+
+---------------------------
+demo 2:
+$ cat student_data.txt
+
+
+output:
+No	Name	Mark	Percent
+1	Sarath	45	90
+
+
+$ cut -f 1 student_data.txt
+
+output:
+No
+1
+
+解析:
+水平制表符(tab键)是cut默认的列或字段定界符，注意，空格是不会被当作定界符的，如果某行没有定界符，那么整行会被当作一列来看待，所以该行会被照原样打印出来。
+如果没有列定界符的行不想被打印出来，可以通过-s选项来禁止打印。
+
+
+------------------------
+demo 3:
+$ cut -f 2,4 sudent_data.txt
+
+output:
+Name	Percent
+Sarath	90
+
+
+解析:
+可以提取多列出来。上面的例子提取第2和第4列，列号之间使用逗号分隔。
+
+-------------------------
+demo 4:
+$ cut -f 3 --complement sdudent_data.txt
+
+output:
+No	Name	Percent
+1	Sarath	90
+
+解析:
+通过--complement选项可以对提取的列进行补集运算，适合用于提取的列很多，不提取的列较少的情况，那么相当于指定不提取的列，取反。
+
+-------------------------
+demo 5:
+$ cat delimited_data.txt
+
+output:
+No;Name;Mark;Percent
+1;Sarath;45;90
+
+$ cut -f 2 -d ";" delimited_data.txt
+
+ouput:
+Name
+Sarath
+
+解析:
+很多时候文本的列定界符不是我们能决定的，所以指定列定界符就非常有帮助了。
+上面的例子中，通过-d选项指定了分号;作为列定界符。
+
+-----------------------
+demo 6:
+$ cat range_fields.txt
+
+output:
+abcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyz
+abcdefghijklmnopqrstuvwxyz
+
+$ cut -c 1-5 range_fields.txt 
+
+output:
+abcde
+abcde
+abcde
+abcde
+abcde
+
+解析:
+cut默认也是最常用的是通过列的定界符来定义列的，其实还可以通过其它角度来定义列，比如字节的角度，字符的角度，列的角度(合并多列为一列)。
+如下:
+(1)-b: 即byte，从字节的角度看文本，来定义列。
+(2)-c: 即char，从字符的角度看文本，来定义列。
+(3)-f: 即field，从列或字段的角度看文本，来重新定义列，多列合并为一列。
+
+其对应参数含义如下:
+(1)N-: 从第N个字节/字符/列开始，一直到行尾。
+(2)N-M: 从第N个字节或字符或列开始，一直到第M个字节/字符/列。
+(3)-M: 从第一个字节/字符/列开始，一直到第M个字节/字符/列。
+
+上面的例子表示从字符的角度看文本，指定了提取范围第1-5个字符。
+
+
+---------------------
+demo 7:
+$ cut -c -2 range_fields.txt 
+
+output:
+ab
+ab
+ab
+ab
+ab
+
+
+--------------------
+demo 8:
+$ cut -c 1-3,6-9 --output-delimiter ";" range_fields.txt
+
+output:
+abc;fghi
+abc;fghi
+abc;fghi
+abc;fghi
+abc;fghi
+
+
+解析:
+可以指定cut的输出的列定界符，上面指定分号;作为输出定界符。
+```
+
+
+
+### 使用sed进行文本替换(sed)
+
+```
+sed是stream editor的缩写，其配合正则表达式可以进行文本处理，特别是文本替换方面。
+
+基本应用:
+$ sed 's/regex_pattern/replace_string/' file
+
+或者
+$ cat file | sed 's/regex_pattern/replace_string/'
+
+其中，/是内部定界符，用来分隔regex_pattern和replace_string的，可以发现有三个定界符，并且首个字符是s。
+内部定界符可以任意指定，sed命令能区分即可，即可以是#, :, |等。 
+当regex_pattern刚好也需要内部定界符时，需要对其进行转义，或者避免在regex_pattern出现样式定界符。
+```
+
+
+
+```
+demo 1:
+$ sed 's/regex_pattern/replace_string/' file  >newFile
+
+$ mv newFile file
+
+$ sed -i 's/regex_pattern/replace_string/' file
+
+解析:
+前两条命令将sed命令进行文本替换后的stdout重定向到newFile中，然后用newFile替换原来的file。
+sed不指定-i选项的时候不会修改原文件的内容，只是会将替换后的全部文本输出到stdout。
+所以，当需要将替换后的修改应用到文件的时候，可以使用-i选项。 -i即--in-place。
+
+
+--------------
+demo 2:
+$ sed 's/regex_pattern/replace_string/' file
+
+$ sed 's/regex_pattern/replace_string/g' file
+
+$ sed 's/regex_pattern/replace_string/Ng' file
+
+$ echo thisthisthisthis | sed 's/this/THIS/'
+
+output:
+THISthisthisthis
+
+$ echo thisthisthisthis | sed 's/this/THIS/g'
+
+output:
+THISTHISTHISTHIS
+
+$ echo thisthisthisthis | sed 's/this/THIS/2g'
+
+output:
+thisTHISTHISTHIS
+
+$ echo thisthisthisthis | sed 's/this/THIS/3g'
+
+output:
+thisthisTHISTHIS
+
+解析:
+默认情况下，sed会替换每一行第一处匹配的。当需要替换所有匹配的文本，在参数某尾加上g；如果需要从第n处匹配的地方开始替换，则末尾加上Ng。
+
+---------------------------
+demo 3:
+$ sed 's|regex_pattern|replace_string|g'
+
+$ sed 's:regex_pattern:replace_string:g'
+
+$ sed 's:regex\:pattern:replace_string:g'
+
+解析:
+sed的关键参数选项中定界符可以任意指定，比如|, : 都是可以的，当regex_pattern或者replace_string需要定界符时，需要转义，否则，sed无法判断定界符是哪个，毕竟无转义的定界符有且只能出现三次。
+所以，阅读他人写的sed命令时，首先判断定界符是什么。
+```
+
+
 
 
 
