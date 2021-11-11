@@ -3091,7 +3091,7 @@ sample2.txt
 --------------------------------
 demo 12:
 
-$ grep text -r -n .
+$ grep text -r -n.
 
 $ cd src_dir
 
@@ -3261,6 +3261,14 @@ b
 通过-A, -B, -C选项可以分别打印出匹配文本以及其后面的n行，匹配文本以及其前面的n行，匹配文本以及其前后面的n行。如果多个匹配，那么会以--作为定界符。
 
 tips: A即After, B即Before, C即Context。
+
+
+-----------------------
+demo 19:
+$ grep -r update /etc/acpi 
+
+解析:
+递归查询/etc/acpi目录下包含update的文件。
 ```
 
 
@@ -3278,13 +3286,13 @@ stream editor for filtering and transforming text.
 
 
 
+
+
 ### 磁盘监视命令(df, du)
 
 ```
 计算机硬件资源主要包括cpu，内存，磁盘。得牢牢记住这些资源都是有限的，包括磁盘。
 随着计算机上运行的软件越多，这些硬件资源会慢慢变得不足从而可能影响软件的正常运行。当发现磁盘资源不足的时候，一般得考虑删除或移走大文件。
-
-
 ```
 
 * du
@@ -3893,7 +3901,165 @@ sed的关键参数选项中定界符可以任意指定，比如|, : 都是可以
 
 
 
+## 管理重任
 
+### 收集进程信息(ps, top, pgrep)
+
+```
+   GNU/Linux的生态系统是由运行的程序，服务，所连接的设备，文件系统，用户等组成。
+   其中一个重要的组成部分就是运行的程序，也就是进程(进行中的程序)。计算机中的每一个进程都别分配一个唯一的ID, 称为PID(proccess ID).
+   进程有许多属性, 包括该进程的用户， 进程使用的内存，进程占用的CPU时间。
+```
+
+
+
+```
+    ps收集的进程信息包括：拥有进程的用户，进程的起始时间，进程对应的命令行路径，PID，进程使用的内存，进程占用的CPU时间等。CPU时间这里可以联想到统计程序执行时间的time命令，从而联想到三个执行时间，real time，user time，sys time。这里的cpu时间无特别指明，所以指的是user time+sys time。也就是用户态cpu时间和内核态cpu时间。
+    进程所属的终端，也就是tele type(TTY)， 这个概念平时没怎么关注。
+```
+
+
+
+```
+demo 1:
+$ ps
+
+output:
+    PID TTY          TIME CMD
+ 102132 pts/1    00:00:00 bash
+ 151546 pts/1    00:00:00 ps
+
+
+解析:
+ps不加任何参数的情况下输出的是属于当前终端的进程信息。
+可以看到有bash，ps。说明打开终端默认就运行着shell，这里运行的是bash shell。
+
+--------------------
+demo 2:
+$ ps -f
+
+output:
+UID        PID  PPID  C STIME TTY          TIME CMD
+root     29803 29733  0 08:22 pts/3    00:00:00 -bash
+root     29829 29803  0 08:23 pts/3    00:00:00 ps -f
+
+解析:
+通过-f选项，即full，可以显示进程更多的信息。不过目前还是只显示当前终端所属的进程。
+
+--------------------
+demo 3:
+$ ps -ef | head
+
+output:
+UID        PID  PPID  C STIME TTY          TIME CMD
+root         1     0  0 06:43 ?        00:00:11 /lib/systemd/systemd --system --deserialize 33
+root         2     0  0 06:43 ?        00:00:00 [kthreadd]
+root         4     2  0 06:43 ?        00:00:00 [kworker/0:0H]
+root         6     2  0 06:43 ?        00:00:00 [mm_percpu_wq]
+root         7     2  0 06:43 ?        00:00:00 [ksoftirqd/0]
+root         8     2  0 06:43 ?        00:00:03 [rcu_sched]
+root         9     2  0 06:43 ?        00:00:00 [rcu_bh]
+root        10     2  0 06:43 ?        00:00:00 [migration/0]
+root        11     2  0 06:43 ?        00:00:00 [watchdog/0]
+
+
+output:
+通过-e选项，即every，可以获取运行在系统上所有进程的信息，而不仅仅是当前所属终端。-ax也可以达到同样的效果。
+head命令默认显示前面10行记录。
+
+
+-----------------------
+demo 4:
+$ ps [other options] -o parameters,parameters,parameters...
+
+$ ps -eo comm,pcpu | head
+
+output:
+COMMAND         %CPU
+systemd          0.8
+kthreadd         0.0
+kworker/0:0H     0.0
+mm_percpu_wq     0.0
+ksoftirqd/0      0.0
+rcu_sched        0.0
+rcu_bh           0.0
+migration/0      0.0
+watchdog/0       0.0
+
+
+解析:
+ps可以收集进程的许多信息，在不同的列显示，有些时候我们只是需要特定列的信息，其它信息无用，这时可以使用-o来指定想要显示的列。
+上面的例子中comm表示COMMAND, pcpu表示CPU占用率, 即percent cpu。
+
+-o的其它选项参数如下:
+pcpu  CPU占用率(percent cpu)
+pid   进程ID(proccess id)
+ppid  父进程ID(parent pid)
+pmem  内存使用率（percent memory）
+comm  可执行文件名(command)
+cmd   简单命令
+user  启动进程的用户
+nice  优先级
+time  累计的cpu时间
+etime  进程启动后流动的时间
+tty    所关联的设备名称
+euid   有效用户ID
+stat   进程状态
+```
+
+
+
+```
+top对于系统管理员来说是一个极为重要的命令。默认输出一个占用CPU最多的进程列表，输出结果每隔几秒就会更新，附带会输出进程的一些其它信息。
+```
+
+
+
+```
+demo 1:
+$ top
+
+output:
+
+top - 13:17:46 up 3 min,  1 user,  load average: 0.07, 0.14, 0.07
+Tasks: 149 total,   1 running, 148 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.2 us,  0.0 sy,  0.0 ni, 99.8 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+MiB Mem :   3936.1 total,   3335.2 free,    125.1 used,    475.7 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   3577.6 avail Mem 
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND                                                                                                         1689 root      20   0   12160   3656   3120 R   0.7   0.1   0:00.07 top                                                                                                            解析:
+top命令除了显示具体进程的cpu排序之外，在顶部还有对系统整体资源的使用情况的统计和分析。
+这个输出结果是几秒动态刷新一次的。
+```
+
+
+
+### term
+
+* white space
+
+```
+White space is created by pressing the Return key, spacebar key, or the Tab key, and can also be created by setting the document's margins and inserting form feeds or tables.
+
+reference:
+https://www.computerhope.com/jargon/w/whitspac.htm
+```
+
+
+
+## 一团乱麻
+
+### curl
+
+ ```
+  curl是一款强力工具，重要的是不仅支持http, https(目前接触最多)，还支持其它的协议，比如FTP, FTPS, SCP, SFTP等。（如果不确定，可以man curl/curl -h查看协议是否支持）。
+  curl一般没有包含在主流linux发行版中，也就是一般初装系统得手动安装curl程序。
+  curl支持很多特性，包括cookie，header，限速，进度条等特性。
+ ```
+
+```
+curl通常将下载文件输出到stdout，将进度信息输出到stderr。要想避免显示进度信息，请使用--silent。
+```
 
 
 
