@@ -4,8 +4,61 @@
     很多人没有理解终端(terminal)和shell的概念，区分两个概念有助于更好的使用shell。
     终端是交互式工具，通过它与shell环境进行交互。所以终端也是一个程序，但是是一个图形化的工具程序，shell也是一个程序，它是命令的一个解释器。
     mac有原生的终端，也有iTerm2等。而shell除了默认也是一般脚本都会指定的shell是bash shell,它是 Bourne shell 的一个免费版本。所以平时打开的是终端,你在终端上执行命令时,实际解释命令的程序是shell,默认是bash shell,而且默认是标准输出。
+<<<<<<< HEAD
 ```
 
+=======
+    Shell is an environment in which we can run our commands, programs, and shell scripts.
+```
+
+
+
+* 关于man命令
+
+```
+当遇到不熟悉的命令或者某个命令不熟悉的选项时, 可以通过man命令查看具体命令的用法.
+
+man command in Linux is used to display the user manual of any command that we can run on
+the terminal.
+
+The manual page, associated with the arguments, is then found and displayed.
+
+Each manual page is divided into sections: NAME, SYNOPSIS, CONFIGURATION, DESCRIPTION, OPTIONS, EXIT STATUS, RETURN VALUE, ERRORS, FILES, VERSIONS, NOTES, BUGS, EXAMPLE, AUTHORS, and SEE ALSO.
+
+这里说所有在终端可以执行的命令都可以通过man查看其使用方法, 其实不一定, 得看能不能找到对应的manual page, 每个命令的man page包括几个部分, 但是也不一定包括所有部分, 不同命令的manual page有差异.
+```
+
+
+
+* shell的种类
+
+```
+Each flavor of shell has its own set of recognized commands and functions.
+
+两大类:
+1.Bourne shell
+默认的shell提示符是$, 超级用户是#.
+细分为：
+(1)Bourne shell (sh)   第一个shell, 大多数unix系统都装有该shell, 一般位于/bin/sh
+(2)Korn shell (ksh)
+(3)Bourne Again shell (bash)  
+(4)POSIX shell (sh)
+
+2.C shell
+默认的shell提示符是%.
+细分为：
+(1)C shell (csh)
+(2)TENEX/TOPS C shell (tcsh)
+
+
+Bourne shell was the first shell to appear on Unix systems, thus it is referred to as "the shell".
+
+Bourne shell is usually installed as /bin/sh on most versions of Unix. For this reason, it is the shell of choice for writing scripts that can be used on different versions of Unix.
+```
+
+
+
+>>>>>>> b06b65982dafb31d2e5c74da2130eb80edb93db1
 * shell脚本的执行
 
 网上总结挺参差不齐的，其实只有两种方式执行.
@@ -26,10 +79,17 @@ chmod a+x script.sh
 ./script.sh
 ```
 
+<<<<<<< HEAD
 * 命令的分割
 
 ```
 通过换行或者分号区分
+=======
+* 命令的定界符
+
+```
+通过换行或者分号区分两条命令
+>>>>>>> b06b65982dafb31d2e5c74da2130eb80edb93db1
 ```
 
 * 注释符
@@ -41,11 +101,19 @@ chmod a+x script.sh
 * bash中的变量
 
 ```
+<<<<<<< HEAD
 bash中每一个变量都是字符串，所以不需要指定类型
 ```
 
 ```
 变量分为环境变量和本地变量
+=======
+bash中每一个变量都会被以字符串的形式存储，所以不需要指定类型
+```
+
+```
+变量分为环境变量(build in)和本地变量
+>>>>>>> b06b65982dafb31d2e5c74da2130eb80edb93db1
 ```
 
 * 查看终端相关的所有环境变量
@@ -154,7 +222,11 @@ $ps -ef|grep java
 命令被称作过滤器，使用管道(pipe)连接每个过滤器，管道操作符是|
 ```
 
+<<<<<<< HEAD
 * 存储命令的输出
+=======
+* 获取命令的输出
+>>>>>>> b06b65982dafb31d2e5c74da2130eb80edb93db1
 
 ```
 注意和命令的返回值的区别，有两种方法。通过加上双引号，可以保留输出的空格和换行符
