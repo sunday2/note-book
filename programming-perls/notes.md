@@ -61,6 +61,14 @@ a mapping from a system such as integers to bits, also known as bitmap index or 
 
 
 ```
+二进制数字系统计算机底层使用的数字系统, 人类习惯的是十进制数字系统, 在使用位运算的时需要区分两者, 其实都是符号化表达, 只不过面向的对象不一样, 本质是一样的. 我们看到的是10, 在计算机底层对应的是其二进制表示, 并没有区别.
+```
+
+
+
+
+
+```
 数学运算与位运算的转换.
 
 乘法: <<, multiply by the power of 2.
