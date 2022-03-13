@@ -40,6 +40,40 @@ a mapping from a system such as integers to bits, also known as bitmap index or 
 
 * 位逻辑运算
 
+```
+|: bitwise or
+
+&: bitwise and
+
+^: bitwise exclusive or
+
+~: bitwise opposite
+
+<<: bit shift left(multiply by the power of 2)
+
+>>: bit shift right(divide by the power of 2)
+
+&&: logical and
+
+||: logical or
+```
+
+
+
+```
+数学运算与位运算的转换.
+
+乘法: <<, multiply by the power of 2.
+
+除法: >>, divide by the power of 2.
+
+模除: 转换为&. x % (2 inpower n) == x & (2 inpower n - 1). 二进制数字系统和十进制系统都是位置数字系统. 对于二进制系统, 除数是2的n次幂, 那么相当于taking the least significant n digits. 对于十进制, 除数若为10的n次幂, 也相当于取低位的n个数字.
+
+https://stackoverflow.com/questions/3072665/bitwise-and-in-place-of-modulus-operator
+```
+
+
+
 * 编程语言中实现的排序算法库
 * 系统排序
 
